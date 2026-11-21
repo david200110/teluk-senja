@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teluk Senja — An Open-World Crime Story</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1226; font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
+  #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hidden { display: none !important; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #hud-top { position: absolute; top: 14px; left: 16px; display: flex; flex-direction: column; gap: 4px; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+  #stars { font-size: 26px; letter-spacing: 4px; color: #ffd23f; }
+  #stars.hot { animation: pulse 0.7s infinite alternate; }
+  @keyframes pulse { from { opacity: .7; } to { opacity: 1; } }
+  #cash { font-size: 22px; font-weight: 700; color: #7dff9b; }
+  #debt { font-size: 15px; color: #ffb3b3; }
+  #mission { font-size: 15px; font-weight: 600; color: #ffd23f; }
+  #objective { font-size: 13px; color: #e8e8e8; }
+  #clock { position: absolute; top: 14px; right: 16px; font-size: 18px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+  #health-wrap { position: absolute; bottom: 18px; left: 16px; width: 220px; }
+  #health { font-size: 14px; margin-bottom: 4px; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+  #healthbar-bg { height: 12px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.4); border-radius: 6px; overflow: hidden; }
+  #healthbar { height: 100%; width: 100%; background: linear-gradient(90deg, #27ae60, #7dff9b); transition: width .2s; }
+  #speed { position: absolute; bottom: 18px; right: 16px; font-size: 26px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+  #minimap { position: absolute; bottom: 18px; right: 16px; width: 190px; height: 190px; border: 2px solid rgba(255,255,255,.55); border-radius: 8px; background: #14384a; margin-bottom: 34px; }
+  #hint { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); padding: 10px 18px; border-radius: 8px; font-size: 15px; max-width: 640px; text-align: center; opacity: 0; transition: opacity .3s; }
+  #hint.show { opacity: 1; }
+  #toast { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); background: rgba(20,40,20,.8); border: 1px solid #7dff9b; padding: 8px 16px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .3s; }
+  #toast.show { opacity: 1; }
+  #center { position: absolute; top: 34%; left: 50%; transform: translate(-50%,-50%) scale(.9); background: rgba(0,0,0,.72); border: 1px solid #ffd23f; padding: 22px 34px; border-radius: 12px; text-align: center; opacity: 0; transition: opacity .3s, transform .3s; }
+  #center.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  #center h2 { color: #ffd23f; margin-bottom: 6px; font-size: 26px; }
+  #center .gold { color: #7dff9b; font-size: 20px; font-weight: 700; }
+  #dialogue { position: absolute; bottom: 170px; left: 50%; transform: translateX(-50%); width: 620px; max-width: 86vw; background: rgba(10,10,24,.82); border-left: 4px solid #ffd23f; padding: 14px 18px; border-radius: 8px; opacity: 0; transition: opacity .3s; }
+  #dialogue.show { opacity: 1; }
+  #dlgName { color: #ffd23f; font-weight: 700; margin-bottom: 4px; }
+  #dlgText { font-size: 15px; line-height: 1.45; }
+  #controls-help { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,.65); text-shadow: 0 1px 3px rgba(0,0,0,.8); white-space: nowrap; }
+
+  /* ---------- Screens ---------- */
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 10; text-align: center; padding: 20px; }
+  .screen.active { display: flex; }
+  #screen-menu { background: linear-gradient(180deg, rgba(20,8,32,.55) 0%, rgba(60,20,10,.35) 55%, rgba(10,6,20,.78) 100%); }
+  #screen-paused, #screen-busted, #screen-wasted, #screen-complete { background: rgba(8,6,16,.72); }
+  .title { font-size: 74px; font-weight: 800; letter-spacing: 6px; color: #ffd23f; text-shadow: 0 4px 0 #b3541e, 0 8px 24px rgba(0,0,0,.7); }
+  .subtitle { font-size: 19px; color: #ffe9c9; margin: 10px 0 26px; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  .story { max-width: 620px; font-size: 15px; line-height: 1.6; color: #f2e8d5; background: rgba(0,0,0,.45); padding: 14px 20px; border-radius: 10px; margin-bottom: 24px; }
+  .btn { pointer-events: auto; cursor: pointer; font-size: 18px; font-weight: 700; color: #1a1226; background: #ffd23f; border: none; padding: 13px 34px; border-radius: 10px; margin: 6px; box-shadow: 0 4px 0 #b3541e; transition: transform .08s, box-shadow .08s; }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #b3541e; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #b3541e; }
+  .btn.secondary { background: #e8e8e8; box-shadow: 0 4px 0 #777; }
+  .screen h1 { font-size: 52px; color: #ffd23f; text-shadow: 0 4px 16px rgba(0,0,0,.8); margin-bottom: 10px; }
+  .screen p { font-size: 17px; line-height: 1.55; max-width: 560px; margin-bottom: 16px; color: #f2e8d5; }
+  .keys { font-size: 13px; color: rgba(255,255,255,.75); margin-top: 18px; line-height: 1.8; }
+  .keys b { color: #ffd23f; }
+  #mute-row { position: fixed; top: 56px; right: 16px; z-index: 20; }
+  #btn-mute { pointer-events: auto; cursor: pointer; background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.4); padding: 6px 12px; border-radius: 8px; font-size: 13px; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="hud-top">
+    <div id="stars">☆☆☆☆☆</div>
+    <div id="cash">Rp 0</div>
+    <div id="debt">Debt: Rp 2,400,000</div>
+    <div id="mission">Mission 1/8 — First Delivery</div>
+    <div id="objective">Press M to start the mission</div>
+  </div>
+  <div id="clock">18:00 · Dusk</div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="health-wrap">
+    <div id="health">100 HP</div>
+    <div id="healthbar-bg"><div id="healthbar"></div></div>
+  </div>
+  <div id="speed"></div>
+  <div id="hint"></div>
+  <div id="toast"></div>
+  <div id="center"></div>
+  <div id="dialogue"><div id="dlgName"></div><div id="dlgText"></div></div>
+  <div id="controls-help">WASD move / drive &nbsp;·&nbsp; Shift run &nbsp;·&nbsp; E enter car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; M mission &nbsp;·&nbsp; R save &nbsp;·&nbsp; P pause &nbsp;·&nbsp; drag mouse to look</div>
+</div>
+
+<!-- Menu -->
+<div id="screen-menu" class="screen active">
+  <div class="title" id="menu-title">Teluk Senja</div>
+  <div class="subtitle" id="menu-subtitle">A dusk-city story of debt, driving and getting out clean.</div>
+  <div class="story">Arga is a young courier in the coastal city of Teluk Senja. He owes <b>Bos Reno Rp 2,400,000</b> — and the only way out is through eight jobs: deliveries, a harbour pickup, a midnight taxi, a stolen coupe, a beach brawl, a getaway, a heist, and one final payment. Drive, fight, dodge the police, and pay it all back.</div>
+  <div>
+    <button class="btn" id="btn-new">New Game</button>
+    <button class="btn secondary hidden" id="btn-continue">Continue</button>
+  </div>
+  <div class="keys"><b>WASD</b> move / drive &nbsp;·&nbsp; <b>Shift</b> run &nbsp;·&nbsp; <b>E</b> enter or steal a car &nbsp;·&nbsp; <b>F</b> punch &nbsp;·&nbsp; <b>M</b> start mission &nbsp;·&nbsp; <b>R</b> save &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; drag the mouse to look around</div>
+</div>
+
+<!-- Pause -->
+<div id="screen-paused" class="screen">
+  <h1>Paused</h1>
+  <p>Teluk Senja waits for no one — except right now. Your progress is saved when a mission ends, or press R any time.</p>
+  <div>
+    <button class="btn" id="btn-resume">Resume</button>
+    <button class="btn secondary" id="btn-restart">Restart Story</button>
+  </div>
+</div>
+
+<!-- Busted -->
+<div id="screen-busted" class="screen">
+  <h1>Busted!</h1>
+  <p id="busted-text">The Teluk Senja police took you in.</p>
+  <div>
+    <button class="btn" id="btn-retry">Back on the Street</button>
+    <button class="btn secondary" id="btn-menu-busted">Main Menu</button>
+  </div>
+</div>
+
+<!-- Wasted -->
+<div id="screen-wasted" class="screen">
+  <h1>Wasted</h1>
+  <p>You woke up in Teluk Senja General Hospital. The doctor says you are lucky — the bill says otherwise.</p>
+  <div>
+    <button class="btn" id="btn-retry">Leave Hospital</button>
+    <button class="btn secondary" id="btn-menu-wasted">Main Menu</button>
+  </div>
+</div>
+
+<!-- Complete -->
+<div id="screen-complete" class="screen">
+  <h1>Debt Paid. Free.</h1>
+  <p>Arga delivered the final payment to Villa Reno. Bos Reno shook his hand, counted the last rupiah, and said the words Arga had waited months to hear: "We are square." Teluk Senja is his again — this time as a free man.</p>
+  <p id="complete-stats"></p>
+  <div>
+    <button class="btn" id="btn-menu-complete">Main Menu</button>
+  </div>
+</div>
+
+<div id="mute-row"><button id="btn-mute">Sound: On</button></div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
